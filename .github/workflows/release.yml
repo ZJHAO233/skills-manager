@@ -1,0 +1,53 @@
+name: Publish plugin release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish versioned package
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const tag = context.ref.startsWith('refs/tags/') ? context.ref.slice(10) : 'v1.2.0';
+            const packages = {
+              'v1.1.2': 'release-packages/AI-Skills管理器-1.1.2-Joel.zpx',
+              'v1.1.3': 'release-packages/AI-Skills管理器-1.1.3-Joel.zpx',
+              'v1.2.0': 'skills-manager-1.2.0.zpx'
+            };
+            const file = packages[tag];
+            if (!file || !fs.existsSync(file)) throw new Error('No verified package mapped for ' + tag);
+            const historical = tag !== 'v1.2.0';
+            const notes = {
+              'v1.1.2': '历史版本，仅用于回溯，不推荐安装。已知问题：ZIP 解包可能出现 setImmediate 未定义，源码安装可能在清理 .git 时出现 EPERM。请使用 v1.2.0。',
+              'v1.1.3': '历史版本，仅用于回溯。修复 setImmediate 和 .git 复制问题，但尚不包含分阶段安装进度、发行版源码快照和最新版本提示。请优先使用 v1.2.0。',
+              'v1.2.0': '支持发行附件及发行版源码快照选择、下载/解包/安装真实分阶段进度、已是最新发行版提示、README 预览、真实刷新和备份式替换。80 项测试通过，实际 ZTools 宿主仍需手动验证。\n\n安装：在 ZTools 插件管理中导入下方 .zpx。应用 ID 为 ai-skills-manager，会作为同 ID 插件升级，请先备份安装记录与重要 Skill。Git 来源更新仍可能重新克隆，不承诺按提交跳过。'
+            };
+            const body = notes[tag] + '\n\n注意：历史标签在同一发布目录提交上建立，用于归档原始安装包，不代表该标签的源码与历史安装包完全一致。旧版安装包为原样保留，未重新构建。';
+            const owner = context.repo.owner, repo = context.repo.repo;
+            let release;
+            try {
+              release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
+              release = (await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, name: tag + (historical ? '（历史版本）' : ''), body, prerelease: historical, make_latest: historical ? 'false' : 'true' })).data;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              release = (await github.rest.repos.createRelease({ owner, repo, tag_name: tag, target_commitish: context.sha, name: tag + (historical ? '（历史版本）' : ''), body, prerelease: historical, make_latest: historical ? 'false' : 'true' })).data;
+            }
+            const name = path.basename(file);
+            const existing = (await github.rest.repos.listReleaseAssets({ owner, repo, release_id: release.id })).data;
+            if (!existing.some(asset => asset.name === name)) {
+              const data = fs.readFileSync(file);
+              await github.rest.repos.uploadReleaseAsset({ owner, repo, release_id: release.id, name, data, headers: { 'content-type': 'application/octet-stream', 'content-length': data.length } });
+            }
+            core.notice('Published ' + release.html_url);
