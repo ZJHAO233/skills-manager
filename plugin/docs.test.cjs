@@ -1,0 +1,7 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+const {readDocs}=require('./docs.cjs');
+async function setup(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'skill-docs-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
+test('prefers Chinese README, offers README and SKILL as tabs, preserves literal text',async t=>{const d=await setup(t);await fs.writeFile(path.join(d,'README.md'),'# Usage <script>no()</script>');await fs.writeFile(path.join(d,'README_CN.md'),'# 中文');await fs.writeFile(path.join(d,'SKILL.md'),'skill');const docs=await readDocs(d);assert.deepEqual(docs.map(f=>f.name),['README_CN.md','README.md','SKILL.md']);assert.ok(docs[1].text.includes('<script>'));});
+test('falls back to SKILL.md and rejects missing files',async t=>{const d=await setup(t);await assert.rejects(readDocs(d),/没有 README/);await fs.writeFile(path.join(d,'SKILL.md'),'hello');assert.equal((await readDocs(d))[0].text,'hello');});
+test('rejects relative and oversized paths and linked roots',async t=>{const d=await setup(t);await assert.rejects(readDocs('relative'));await fs.writeFile(path.join(d,'README.md'),Buffer.alloc(1048577));await assert.rejects(readDocs(d),/超过/);const link=d+'-link';await fs.symlink(d,link,'junction');t.after(()=>fs.rm(link,{force:true,recursive:true}));await assert.rejects(readDocs(link),/链接/);});

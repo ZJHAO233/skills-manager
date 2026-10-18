@@ -1,0 +1,36 @@
+'use strict';
+const {chromium}=require('playwright');
+const http=require('node:http');const fs=require('node:fs');const path=require('node:path');const assert=require('node:assert/strict');
+(async()=>{
+ const root=path.join(__dirname,'plugin');
+ const server=http.createServer((req,res)=>{let rel=decodeURIComponent(req.url.split('?')[0]);if(rel==='/')rel='/index.html';const file=path.resolve(root,'.'+rel);if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(e,b)=>{if(e){res.writeHead(404).end();return;}res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'application/octet-stream');res.end(b);});});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const browser=await chromium.launch({channel:'msedge',headless:true});
+ try{const page=await browser.newPage({viewport:{width:1000,height:740}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('https://fonts.googleapis.com/**',r=>r.abort());
+ await page.addInitScript(()=>{window.ztools={isDarkColors:()=>false,onPluginEnter:()=>{},showNotification:()=>{}};window.preloadAPI={refreshRegistry:async()=>{window.refreshed=true;return [];},getSkillsList:async()=>[{id:'demo',name:'Demo Skill',description:'Local skill usage',localPath:'C:\\Test\\skill',agent:'codex',sourceUrl:'未注册',updatedAt:new Date().toISOString()}],readSkillDocs:async()=>[{name:'README.md',text:'# Usage <script>unsafe()</script>'},{name:'SKILL.md',text:'skill instructions'}],getSupportedAgents:()=>[{id:'codex',name:'Codex',path:'.codex/skills'}],migrateLegacyData:async()=>{},resolveReleaseChoice:c=>{window.testChoice=c;},cancelDownloads:async()=>{window.cancelled=true;}};});
+ await page.goto('http://127.0.0.1:'+server.address().port+'/');await page.locator('.brand').waitFor();
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-release-choice',{detail:{releases:[{tag:'v1.2',assets:[{id:123,name:'my-skill.zip',size:1000}]}]}})));
+ await page.getByRole('button',{name:/my-skill.zip/}).click();assert.equal(await page.evaluate(()=>window.testChoice.assetId),123);
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-release-choice',{detail:{releases:[]}})));await page.getByRole('button',{name:'使用仓库源码（可能较大）'}).click();assert.equal(await page.evaluate(()=>window.testChoice.type),'source');
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-release-choice',{detail:{releases:[]}})));await page.locator('#release-picker').getByRole('button',{name:'取消',exact:true}).click();assert.equal(await page.evaluate(()=>window.testChoice.type),'cancel');
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-release-choice',{detail:{releases:[{tag:'v2.0',assets:[],source:{kind:'source'}}]}})));
+  assert.match(await page.locator('#release-picker p').textContent(),/版本源码快照/);await page.getByRole('button',{name:/v2.0 · 源码快照/}).click();assert.deepEqual(await page.evaluate(()=>window.testChoice),{type:'snapshot',tag:'v2.0'});
+  const panel=page.locator('#skill-task-progress');const meter=panel.locator('progress');
+  const progress=detail=>page.evaluate(detail=>window.dispatchEvent(new CustomEvent('skill-task-progress',{detail})),detail);
+  await progress({stage:'download',state:'start'});assert.equal(await panel.isVisible(),true);assert.equal(await meter.getAttribute('value'),null);
+  await progress({stage:'download',current:25,total:100});assert.equal(await meter.getAttribute('value'),'25');assert.equal(await meter.getAttribute('max'),'100');assert.match(await panel.textContent(),/25 \/ 100 字节/);
+  await progress({stage:'download',current:4096,total:0});assert.equal(await meter.getAttribute('value'),null);
+  await progress({stage:'extract',current:2,total:5});assert.equal(await meter.getAttribute('value'),'2');assert.match(await panel.textContent(),/解压 · 2 \/ 5 文件/);
+  await progress({stage:'extract',state:'done'});assert.equal(await panel.isVisible(),false);assert.equal(await meter.getAttribute('value'),null);
+  await progress({stage:'install',state:'start',label:'Demo'});assert.equal(await panel.isVisible(),true);assert.equal(await meter.getAttribute('value'),null);
+  await progress({stage:'install',current:3,total:9,label:'Demo'});assert.equal(await meter.getAttribute('value'),'3');assert.match(await panel.textContent(),/Demo · 3 \/ 9 文件/);
+  await progress({stage:'install',state:'error',error:'disk full'});assert.equal(await panel.isVisible(),true);assert.equal(await meter.isVisible(),false);assert.match(await panel.textContent(),/disk full/);assert.equal(await meter.getAttribute('value'),null);
+  await progress({stage:'install',state:'start'});assert.equal(await meter.isVisible(),true);await progress({stage:'install',state:'done'});assert.equal(await panel.isVisible(),false);
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-download-state',{detail:{active:true}})));await page.locator('#cancel-skill-download').click();assert.ok(await page.evaluate(()=>window.cancelled));
+ await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-download-state',{detail:{active:false}})));assert.equal(await page.locator('#cancel-skill-download').isVisible(),false);
+ await page.getByTitle('查看使用说明').first().click(); await page.locator('#skill-docs pre').getByText('# Usage <script>unsafe()</script>',{exact:true}).waitFor(); assert.equal(await page.locator('#skill-docs pre script').count(),0); await page.locator('#skill-docs').getByRole('button',{name:'SKILL.md',exact:true}).click(); assert.equal(await page.locator('#skill-docs pre').textContent(),'skill instructions'); await page.locator('#skill-docs').getByRole('button',{name:'关闭',exact:true}).click();
+ await page.getByTitle('全量审计并同步全机 AI 技能').click(); assert.ok(await page.evaluate(()=>window.refreshed)); await page.getByText('Joel 修改版 · 1.2.0',{exact:true}).waitFor();
+ assert.deepEqual(errors,[]);console.log('PASS original UI mounts, release/snapshot/source/cancel choices, real progress counters, indeterminate stages, completion/error recovery, docs and cancel control; mocked host only');
+ }finally{await browser.close();await new Promise(r=>server.close(r));}
+})().catch(e=>{console.error(e);process.exitCode=1;});
