@@ -29,7 +29,7 @@
     if (measured) { meter.max = total; meter.value = Math.min(current, total); }
     status.textContent = label + (measured ? ' · ' + current + ' / ' + total + (progress.stage === 'download' ? ' 字节' : ' 文件') : ' · 正在处理，等待实际进度…');
   });
-  const version = document.createElement('small'); version.id = 'joel-build-version'; version.textContent = 'SkillHub · Joel · 2.0.0'; document.body.append(version);
+  const version = document.createElement('small'); version.id = 'joel-build-version'; version.textContent = 'SkillHub · Joel · 2.0.3'; document.body.append(version);
   const dialog = document.createElement('dialog'); dialog.id = 'release-picker';
   const heading = document.createElement('h2'); heading.textContent = '选择 Skill 下载方式';
   const hint = document.createElement('p'); const list = document.createElement('div'); list.className = 'release-assets';
@@ -67,7 +67,9 @@
     try {
       const url = new URL(detail.source || '');
       if (url.protocol === 'https:' && url.hostname === 'github.com' && !url.username && !url.password && !url.port && /^\/[^/]+\/[^/]+/.test(url.pathname)) {
-        window.preloadAPI.openUrl(url.href); return;
+        const parts = url.pathname.split('/').filter(Boolean);
+        const repo = parts[1].replace(/\.git$/i, '');
+        if (parts[0] && repo && !['.', '..'].includes(parts[0]) && !['.', '..'].includes(repo)) { window.preloadAPI.openUrl('https://github.com/' + parts[0] + '/' + repo); return; }
       }
     } catch {}
     content.textContent = '正在读取本地说明…'; tabs.replaceChildren(); if (!docs.open) docs.showModal();
@@ -84,7 +86,8 @@
   const nicknameHint = document.createElement('p'); nicknameHint.textContent = '仅保存在本插件的本机存储，不修改 Skill 文件。';
   const nicknameSave = document.createElement('button'); nicknameSave.textContent = '保存昵称';
   const nicknameCancel = document.createElement('button'); nicknameCancel.textContent = '取消'; nicknameCancel.onclick = () => nicknameDialog.close();
-  nicknameDialog.append(nicknameTitle, nicknameInput, nicknameHint, nicknameCancel, nicknameSave); document.body.append(nicknameDialog);
+  const nicknameActions = document.createElement('div'); nicknameActions.className = 'nickname-actions'; nicknameSave.className = 'nickname-primary'; nicknameActions.append(nicknameCancel, nicknameSave);
+  nicknameDialog.append(nicknameTitle, nicknameInput, nicknameHint, nicknameActions); document.body.append(nicknameDialog);
   let nicknamePath = '';
   const nicknameKey = path => 'skills-manager.nickname:' + path;
   const readNickname = path => { try { return (localStorage.getItem(nicknameKey(path)) || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 60); } catch { return ''; } };
@@ -130,8 +133,15 @@
       if (!grid.classList.contains('compact-agent-targets')) grid.classList.add('compact-agent-targets');
       for (const label of grid.querySelectorAll(':scope > label')) {
         const input = label.querySelector('input');
-        const extra = !!input && input.value !== 'codex';
+        const extra = !!input && !['codex', 'on', ''].includes(input.value);
         if (label.classList.contains('extra-agent-target') !== extra) label.classList.toggle('extra-agent-target', extra);
+      }
+      if (!grid.dataset.targetToggle) {
+        grid.dataset.targetToggle = 'true';
+        const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'more-agent-targets'; toggle.textContent = '其他'; toggle.setAttribute('aria-expanded', 'false');
+        toggle.onclick = () => { const expanded = grid.classList.toggle('show-extra-targets'); toggle.setAttribute('aria-expanded', String(expanded)); toggle.textContent = expanded ? '收起其他' : '其他'; };
+        const custom = [...grid.querySelectorAll(':scope > label')].find(label => { const input = label.querySelector('input'); return input && ['on', ''].includes(input.value); });
+        if (custom) custom.after(toggle); else grid.append(toggle);
       }
     }
   };

@@ -2,7 +2,7 @@
   "name": "skillhub",
   "title": "SkillHub · 技能库",
   "description": "快捷安装、更新、卸载AI Agent的技能",
-  "version": "2.0.0",
+  "version": "2.0.3",
   "author": "Joel",
   "main": "index.html",
   "logo": "logo.png",

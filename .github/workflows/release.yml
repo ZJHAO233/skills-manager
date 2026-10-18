@@ -26,12 +26,14 @@ jobs:
               'v1.1.3': 'release-packages/AI-Skills管理器-1.1.3-Joel.zpx',
               'v1.2.0': 'skills-manager-1.2.0.zpx',
               'v1.2.1': 'skills-manager-1.2.1.zpx',
-              'v2.0.0': 'skillhub-2.0.0.zpx'
+              'v2.0.0': 'skillhub-2.0.0.zpx',
+              'v2.0.3': 'skillhub-2.0.3.zpx'
             };
             const file = packages[tag];
             if (!file || !fs.existsSync(file)) throw new Error('No verified package mapped for ' + tag);
             const historical = ['v1.1.2', 'v1.1.3'].includes(tag);
             const notes = {
+              'v2.0.3': '修复 Codex 目录及目录映射被误标为 OpenClaw：使用完整路径、真实路径和边界匹配，自定义路径不再被通用 skills 规则抢先归类。合并 2.0.1–2.0.2 改进：紧凑昵称弹窗，Codex/自定义路径/其他安装目标同行，其他工具按需展开，使用说明打开 GitHub 仓库主页。安装方式：在 ZTools 插件管理导入 skillhub-2.0.3.zpx。插件 ID 仍为 skillhub。测试与模拟宿主浏览器交互已验证，真实 ZTools 需手动确认。',
               'v2.0.0': 'SkillHub · 技能库，作者 Joel。ZTools 插件 ID 改为 skillhub，新品牌叠层图标；GitHub 仓库保持不变。只保留 Codex 安装目标，昵称在标题直接展示、原名仅悬停显示，文档/目录/编辑统一图标。说明优先打开 GitHub 来源，无来源回退本地文档；支持目录映射，修复临时目录清理掩盖错误。保留发行附件、发行快照、真实进度和备份安装。\n\n重要：新 ID 不覆盖旧插件，沿用磁盘安装记录；旧插件浏览器存储昵称不会自动迁移。请勿新旧同时操作。此仓库是 ZTools 插件，请下载 .zpx 到 ZTools 插件管理导入，不是 Skill 包。实际 ZTools 宿主仍需手动验证。',
               'v1.2.1': '修复预览失败时临时目录清理 EPERM 掩盖真实错误的问题。找不到 SKILL.md 时明确提示，不再让清理失败替代原因。此仓库是 ZTools 插件，请下载 .zpx 并在 ZTools 插件管理中导入，不要作为 Skill 仓库安装。',
               'v1.1.2': '历史版本，仅用于回溯，不推荐安装。已知问题：ZIP 解包可能出现 setImmediate 未定义，源码安装可能在清理 .git 时出现 EPERM。请使用 v1.2.0。',

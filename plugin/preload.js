@@ -1166,7 +1166,16 @@ async function distributeSkill(skillId, targetAgents) {
   return true;
 }
 
-function getSupportedAgents() { return AGENT_CONFIGS; }
+function getSupportedAgents() {
+  return AGENT_CONFIGS.map(agent => {
+    let base = getPathForAgent(agent.id);
+    if (agent.id === 'codex' && process.env.CODEX_HOME) base = path.join(process.env.CODEX_HOME, 'skills');
+    if (agent.id === 'claudecode' && process.env.CLAUDE_CONFIG_DIR) base = path.join(process.env.CLAUDE_CONFIG_DIR, 'skills');
+    const absolutePaths = [base];
+    try { const real = fs.realpathSync(base); if (!absolutePaths.includes(real)) absolutePaths.push(real); } catch {}
+    return { ...agent, absolutePaths };
+  });
+}
 
 // 挂载
 window.preloadAPI = {
