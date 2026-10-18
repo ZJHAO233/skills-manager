@@ -65,6 +65,22 @@ for (const [text, code] of [
   assert.equal(fs.existsSync(f.target), false);
 });
 
+test('cleanup rejection preserves clone error and prevents retrying a partial target', async t => {
+  const f = fixture(t, child => {
+    child.stderr.emit('data', Buffer.from('Connection reset by peer\n'));
+    child.emit('close', 128);
+  });
+  t.mock.method(fs.promises, 'rm', async () => { throw Object.assign(new Error('cleanup denied'), { code: 'EPERM' }); });
+  const warnings = [];
+  await assert.rejects(f.downloader.clone(url, f.target, event => {
+    if (event.text.includes('[警告]')) { warnings.push(event.text); throw new Error('UI failed'); }
+  }), error => error.code === 'NETWORK_ERROR' && /Connection reset/.test(error.message));
+  assert.equal(f.calls.length, 1);
+  assert.ok(fs.existsSync(f.target));
+  assert.equal(warnings.length, 1);
+  assert.ok(warnings[0].includes(f.target));
+});
+
 test('ENOENT is fatal without echoing arbitrary spawn error', async t => {
   const f = fixture(t, child => {
     child.pid = undefined;

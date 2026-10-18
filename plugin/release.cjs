@@ -353,7 +353,11 @@ function createReleaseClient({ requestJSON = async (url, { signal } = {}) => JSO
       if (!skills.length) throw fail('NO_SKILLS', 'No SKILL.md packages found in the release ZIP.');
       return { tempDir, cloneDir, skills, gitUrl: `https://github.com/${result.repo}`, release: { kind: isSource ? 'source' : 'asset', repo: result.repo, tag: release.tag, assetId: isSource ? null : asset.id, assetName: asset.name } };
     } catch (error) {
-      await fs.rm(tempDir, { recursive: true, force: true });
+      try {
+        await fs.rm(tempDir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+      } catch (cleanupError) {
+        progress(onProgress, { text: `[警告] 临时目录清理失败，请稍后手动删除: ${tempDir}\n` });
+      }
       throw error;
     }
   }

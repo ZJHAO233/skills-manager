@@ -29,7 +29,7 @@
     if (measured) { meter.max = total; meter.value = Math.min(current, total); }
     status.textContent = label + (measured ? ' · ' + current + ' / ' + total + (progress.stage === 'download' ? ' 字节' : ' 文件') : ' · 正在处理，等待实际进度…');
   });
-  const version = document.createElement('small'); version.id = 'joel-build-version'; version.textContent = 'Joel 修改版 · 1.2.0'; document.body.append(version);
+  const version = document.createElement('small'); version.id = 'joel-build-version'; version.textContent = 'SkillHub · Joel · 2.0.0'; document.body.append(version);
   const dialog = document.createElement('dialog'); dialog.id = 'release-picker';
   const heading = document.createElement('h2'); heading.textContent = '选择 Skill 下载方式';
   const hint = document.createElement('p'); const list = document.createElement('div'); list.className = 'release-assets';
@@ -63,14 +63,80 @@
   const close = document.createElement('button'); close.textContent = '关闭'; close.onclick = () => docs.close();
   docs.append(docsTitle, tabs, content, close); document.body.append(docs);
   window.addEventListener('skill-open-docs', async e => {
+    const detail = typeof e.detail === 'string' ? { path: e.detail } : e.detail;
+    try {
+      const url = new URL(detail.source || '');
+      if (url.protocol === 'https:' && url.hostname === 'github.com' && !url.username && !url.password && !url.port && /^\/[^/]+\/[^/]+/.test(url.pathname)) {
+        window.preloadAPI.openUrl(url.href); return;
+      }
+    } catch {}
     content.textContent = '正在读取本地说明…'; tabs.replaceChildren(); if (!docs.open) docs.showModal();
     try {
-      const files = await window.preloadAPI.readSkillDocs(e.detail);
+      const files = await window.preloadAPI.readSkillDocs(detail.path);
       tabs.replaceChildren();
       for (const file of files) { const tab = document.createElement('button'); tab.textContent = file.name; tab.onclick = () => { content.textContent = file.text; }; tabs.append(tab); }
       content.textContent = files[0].text;
     } catch (error) { content.textContent = error.message; }
   });
+  const nicknameDialog = document.createElement('dialog'); nicknameDialog.id = 'skill-nickname';
+  const nicknameTitle = document.createElement('h2'); nicknameTitle.textContent = 'Skill 昵称';
+  const nicknameInput = document.createElement('input'); nicknameInput.type = 'text'; nicknameInput.maxLength = 60; nicknameInput.placeholder = '最多 60 字，留空恢复原名'; nicknameInput.setAttribute('aria-label', 'Skill 昵称');
+  const nicknameHint = document.createElement('p'); nicknameHint.textContent = '仅保存在本插件的本机存储，不修改 Skill 文件。';
+  const nicknameSave = document.createElement('button'); nicknameSave.textContent = '保存昵称';
+  const nicknameCancel = document.createElement('button'); nicknameCancel.textContent = '取消'; nicknameCancel.onclick = () => nicknameDialog.close();
+  nicknameDialog.append(nicknameTitle, nicknameInput, nicknameHint, nicknameCancel, nicknameSave); document.body.append(nicknameDialog);
+  let nicknamePath = '';
+  const nicknameKey = path => 'skills-manager.nickname:' + path;
+  const readNickname = path => { try { return (localStorage.getItem(nicknameKey(path)) || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 60); } catch { return ''; } };
+  nicknameSave.onclick = () => {
+    try { const text = nicknameInput.value.trim().slice(0, 60); if (text) localStorage.setItem(nicknameKey(nicknamePath), text); else localStorage.removeItem(nicknameKey(nicknamePath)); nicknameDialog.close(); refreshNicknames(); }
+    catch { nicknameHint.textContent = '本地存储失败，请检查空间后重试。'; }
+  };
+  function refreshNicknames() {
+    for (const action of document.querySelectorAll('.skill-doc-button,button[title="打开本地目录"],button[title="打开目录"]')) {
+      if (!action.classList.contains('skill-action-button')) action.classList.add('skill-action-button');
+    }
+    for (const doc of document.querySelectorAll('.skill-doc-button[data-skill-path]')) {
+      const container = doc.parentElement; if (!container) continue;
+      const path = doc.dataset.skillPath;
+      let edit = container.querySelector('.skill-nickname-button');
+      if (!edit) {
+        edit = document.createElement('button'); edit.type = 'button'; edit.className = 'btn-icon-link skill-action-button skill-nickname-button'; edit.setAttribute('aria-label', '编辑 Skill 昵称'); edit.title = '编辑 Skill 昵称';
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('width', '16'); svg.setAttribute('height', '16'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '2'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round'); svg.setAttribute('aria-hidden', 'true');
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'path'); icon.setAttribute('d', 'M12 20H4v-8M16 4l4 4M9 15l-1 4 4-1L21 9a2.83 2.83 0 0 0-4-4Z'); svg.append(icon); edit.append(svg); container.append(edit);
+        edit.onclick = e => { e.stopPropagation(); nicknamePath = doc.dataset.skillPath; nicknameInput.value = readNickname(nicknamePath); nicknameHint.textContent = '仅保存在本插件的本机存储，不修改 Skill 文件。'; nicknameDialog.showModal(); nicknameInput.focus(); };
+      }
+      const text = readNickname(path);
+      if (edit.classList.contains('has-nickname') !== !!text) edit.classList.toggle('has-nickname', !!text);
+      const card = doc.closest('.glass-card,.group-child-card'); if (!card) continue;
+      const title = card.querySelector('.child-info strong,h3'); if (!title) continue;
+      if (title.dataset.originalPath !== path || title.textContent !== title.dataset.renderedName) {
+        if (title.dataset.originalName !== title.textContent) title.dataset.originalName = title.textContent;
+        if (title.dataset.originalPath !== path) title.dataset.originalPath = path;
+      }
+      const original = title.dataset.originalName;
+      const display = text || original;
+      if (title.textContent !== display) title.textContent = display;
+      if (title.dataset.renderedName !== display) title.dataset.renderedName = display;
+      const tooltip = text ? '原名：' + original : original;
+      if (title.title !== tooltip) title.title = tooltip;
+      const anchor = title.closest('.card-title-row') || title;
+      anchor.parentElement.querySelector(':scope > .skill-original-name')?.remove();
+    }
+  }
+  const compactTargets = () => {
+    refreshNicknames();
+    for (const grid of document.querySelectorAll('.full-agent-grid')) {
+      if (!grid.classList.contains('compact-agent-targets')) grid.classList.add('compact-agent-targets');
+      for (const label of grid.querySelectorAll(':scope > label')) {
+        const input = label.querySelector('input');
+        const extra = !!input && input.value !== 'codex';
+        if (label.classList.contains('extra-agent-target') !== extra) label.classList.toggle('extra-agent-target', extra);
+      }
+    }
+  };
+  new MutationObserver(compactTargets).observe(document.getElementById('app'), { childList: true, subtree: true });
+  compactTargets();
   let active = 0;
   window.addEventListener('skill-download-state', e => {
     active = e.detail.active ? active + 1 : Math.max(0, active - 1);

@@ -64,6 +64,7 @@ function memoryFs() {
     rmSync, cpSync, readdirSync, statSync,
     rm: (name, options, callback) => { rmSync(name); callback(null); },
     promises: {
+      rm: async (name, options) => rmSync(name),
       access: async name => { readFileSync(name); },
       readFile: async name => readFileSync(name),
       writeFile: async (name, data) => writeFileSync(name, data),
@@ -201,6 +202,43 @@ test('only an explicit source choice invokes the source downloader', async () =>
   assert.equal(fixture.calls.clone[0][0], REPO + '.git');
   assert.ok(fixture.calls.clone[0][1].startsWith(TEMP + path.sep));
   assert.deepEqual(fixture.calls.prepare, []);
+});
+
+for (const cleanupFails of [false, true]) {
+  test(`source without SKILL.md preserves discovery error when cleanup ${cleanupFails ? 'rejects' : 'succeeds'}`, async () => {
+    const fixture = sandbox({ clone(mockFs, gitUrl, cloneDir) {
+      mockFs.writeFileSync(path.join(cloneDir, 'README.md'), '# Plugin, not a skill repository');
+    } });
+    const cleanupCalls = [];
+    const remove = fixture.disk.mock.promises.rm;
+    fixture.disk.mock.rmSync = () => { throw Object.assign(new Error('sync cleanup denied'), { code: 'EPERM' }); };
+    fixture.disk.mock.promises.rm = async (name, options) => {
+      cleanupCalls.push([name, plain(options)]);
+      if (cleanupFails) throw Object.assign(new Error('async cleanup denied'), { code: 'EPERM' });
+      await remove(name, options);
+    };
+    const warnings = [];
+    fixture.choose('source');
+    await assert.rejects(fixture.api.previewSkills(REPO, event => {
+      if (event.text.includes('[警告]')) { warnings.push(event.text); throw new Error('UI callback failed'); }
+    }), /未发现任何 SKILL\.md/);
+    assert.equal(cleanupCalls.length, 1);
+    assert.deepEqual(cleanupCalls[0][1], { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+    assert.equal(warnings.length, cleanupFails ? 1 : 0);
+    if (cleanupFails) assert.ok(warnings[0].includes(cleanupCalls[0][0]));
+  });
+}
+
+test('source cleanup preserves clone error identity and skips running processes', async () => {
+  for (const code of ['CANCELLED', 'PROCESS_STILL_RUNNING']) {
+    const error = Object.assign(new Error('original clone failure'), { code });
+    const fixture = sandbox({ clone() { throw error; } });
+    let cleanups = 0;
+    fixture.disk.mock.promises.rm = async () => { cleanups++; throw new Error('cleanup denied'); };
+    fixture.choose('source');
+    await assert.rejects(fixture.api.previewSkills(REPO), actual => actual === error);
+    assert.equal(cleanups, code === 'PROCESS_STILL_RUNNING' ? 0 : 1);
+  }
 });
 
 test('cancel choice rejects preview without preparing or cloning', async () => {

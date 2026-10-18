@@ -14,7 +14,7 @@ const zlib = require('node:zlib');
     try {
       await asar.createPackage(stage, archive);
       const content = await fs.readFile(archive);
-      await fs.writeFile(path.join(__dirname, 'skills-manager-1.2.0.zpx'), zlib.gzipSync(content));
+      await fs.writeFile(path.join(__dirname, 'skillhub-2.0.0.zpx'), zlib.gzipSync(content));
       const config = JSON.parse(asar.extractFile(archive, 'plugin.json').toString());
       for (const f of ['preload.js','download.cjs','download-controls.js']) asar.extractFile(archive, f);
       console.log('Verified', config.name, config.version, config.author);

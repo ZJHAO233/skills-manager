@@ -1,8 +1,8 @@
 {
-  "name": "ai-skills-manager",
-  "title": "AI-Skills管理器",
+  "name": "skillhub",
+  "title": "SkillHub · 技能库",
   "description": "快捷安装、更新、卸载AI Agent的技能",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "author": "Joel",
   "main": "index.html",
   "logo": "logo.png",
@@ -12,7 +12,8 @@
       "code": "manage",
       "explain": "打开技能管理器",
       "cmds": [
-        "skills",
+        "skillhub",
+        "技能库",
         "技能管理"
       ]
     },

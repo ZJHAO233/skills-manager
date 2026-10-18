@@ -223,7 +223,11 @@ function createDownloader({ spawn = childProcess.spawn, now = Date.now, idleMs =
               return;
             } catch (error) {
               if (error.code === 'PROCESS_STILL_RUNNING') throw error;
-              await cleanup();
+              try { await cleanup(); }
+              catch (cleanupError) {
+                emit(`[警告] 临时目录清理失败，请稍后手动删除: ${cloneDir}\n`);
+                throw error;
+              }
               if (job.cancelled) throw failure('CANCELLED', '下载已取消。');
               if (!['NETWORK_ERROR', 'IDLE_TIMEOUT', 'ATTEMPT_TIMEOUT'].includes(error.code)) throw error;
               if (now() >= deadline) throw failure('TOTAL_TIMEOUT', '下载总时间已超限，已停止下载。', error.stderrTail);

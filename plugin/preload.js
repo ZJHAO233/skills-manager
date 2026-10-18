@@ -576,7 +576,6 @@ function previewSourceSkills(repoUrl, onProgress) {
     }
 
     if (skills.length === 0) {
-      if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
       throw new Error("同步失败：在该仓库中未发现任何 SKILL.md 文件。请确认地址是否正确。");
     }
 
@@ -590,8 +589,16 @@ function previewSourceSkills(repoUrl, onProgress) {
       if (onProgress) onProgress({ type: 'info', text: `[成功] 发现 ${skills.length} 个技能: ${skills.map(s => s.name).join(', ')}\n` });
       return { tempDir, cloneDir, skills, gitUrl };
     });
-  }).catch((err) => {
-    if (err.code !== 'PROCESS_STILL_RUNNING' && fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+  }).catch(async (err) => {
+    if (err.code !== 'PROCESS_STILL_RUNNING') {
+      try {
+        await fs.promises.rm(tempDir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+      } catch (cleanupError) {
+        try {
+          if (onProgress) onProgress({ type: 'info', text: `[警告] 临时目录清理失败，请稍后手动删除: ${tempDir}\n` });
+        } catch {}
+      }
+    }
     throw err;
   });
 }

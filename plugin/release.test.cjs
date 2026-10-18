@@ -89,6 +89,29 @@ async function preview(files, inspect, options) {
   try { await inspect(result); } finally { await fs.rm(result.tempDir, { recursive: true, force: true }); }
 }
 
+test('no-skills release preserves discovery error when cleanup rejects and warning callback throws', async t => {
+  const { client } = fixture(await archive({ 'README.md': '# Plugin repository' }));
+  const remove = fs.rm;
+  const cleanupCalls = [];
+  const mocked = t.mock.method(fs, 'rm', async (name, options) => {
+    cleanupCalls.push([name, options]);
+    throw Object.assign(new Error('cleanup denied'), { code: 'EPERM' });
+  });
+  const warnings = [];
+  try {
+    await assert.rejects(client.prepare(REPO, 42, event => {
+      if (event.text.includes('[警告]')) { warnings.push(event.text); throw new Error('UI failed'); }
+    }), error => error.code === 'NO_SKILLS' && /No SKILL\.md/.test(error.message));
+    assert.equal(cleanupCalls.length, 1);
+    assert.deepEqual(cleanupCalls[0][1], { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].includes(cleanupCalls[0][0]));
+  } finally {
+    mocked.mock.restore();
+    for (const [name] of cleanupCalls) await remove(name, { recursive: true, force: true });
+  }
+});
+
 test('lists and prepares observed source snapshots for releases with no uploaded assets', async () => {
   const buffer = await archive({ 'example-abcdef/SKILL.md': '# source', 'example-abcdef/data.txt': 'data' });
   const { client, records, calls } = fixture(buffer);
@@ -249,6 +272,7 @@ test('lists eligible assets from only the latest ten releases without choosing o
   const { client, records, calls } = fixture(Buffer.from('zip'));
   records[0].assets.push(
     { id: 43, name: 'setup.exe', size: 10, browser_download_url: URL },
+    { id: 45, name: 'skills-manager.zpx', size: 10, browser_download_url: URL },
     { id: 44, name: 'large.zip', size: 50 * 1024 * 1024 + 1, browser_download_url: URL }
   );
   records.push({ tag_name: 'draft', draft: true }, { tag_name: 'preview', prerelease: true });

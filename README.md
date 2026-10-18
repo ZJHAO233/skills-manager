@@ -1,15 +1,16 @@
-# Skills Manager
+# SkillHub · 技能库
 
 Joel 的 ZTools AI Skill 管理插件。支持本地技能库、GitHub 仓库安装、发行附件和发行版源码快照。
 
 ## 安装
 
-在 GitHub Releases 下载 `.zpx`，通过 ZTools 插件管理的“导入本地插件”安装。应用 ID 为 `ai-skills-manager`，同 ID 的原版会被视为升级。升级前请备份插件和用户主目录下的 `.ai-skills-manager/registry.json`。
+在 GitHub Releases 下载 `.zpx`，通过 ZTools 插件管理的“导入本地插件”安装。2.0.0 起 ZTools 应用 ID 为 `skillhub`，不会覆盖旧版 `ai-skills-manager`；仓库仍为 `ZJHAO233/skills-manager`。沿用用户主目录下 `.ai-skills-manager/registry.json` 磁盘安装记录，请先备份。旧插件浏览器存储中的昵称不会自动迁移，新插件需要重新设置。不要同时在新旧插件执行安装、更新或删除。
 
 ## 功能
 
 - 浏览本地 AI 工具的 Skill，支持筛选、卡片/列表和仓库分组。
-- 点击卡片的“说明”查看本地 README，没有时回退到 SKILL.md；只读原始文本。
+- 文档图标优先打开有效的 GitHub 来源页面，无来源时回退本地 README/SKILL.md 只读预览，支持正常目录映射。
+- 安装目标只显示 Codex。可为本地 Skill 设置昵称，原名仅悬停显示，不占卡片行；文档、目录、昵称使用统一图标。昵称按安装路径存在当前插件的本机浏览器存储中。
 - 粘贴 GitHub 仓库链接，优先选择作者上传的 ZIP；也可选择指定发行版本的源码快照。
 - 没有合适发行包时，明确选择当前仓库源码；源码模式仍会浅克隆整个仓库。
 - 下载、解包、安装分阶段显示进度；未知总量使用等待状态。
