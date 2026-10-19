@@ -29,7 +29,7 @@
     if (measured) { meter.max = total; meter.value = Math.min(current, total); }
     status.textContent = label + (measured ? ' · ' + current + ' / ' + total + (progress.stage === 'download' ? ' 字节' : ' 文件') : ' · 正在处理，等待实际进度…');
   });
-  const version = document.createElement('small'); version.id = 'joel-build-version'; version.textContent = 'SkillHub · Joel · 2.0.3'; document.body.append(version);
+  const version = document.createElement('small'); version.id = 'joel-build-version'; version.textContent = 'SkillHub · Joel · 2.3.1'; document.body.append(version);
   const dialog = document.createElement('dialog'); dialog.id = 'release-picker';
   const heading = document.createElement('h2'); heading.textContent = '选择 Skill 下载方式';
   const hint = document.createElement('p'); const list = document.createElement('div'); list.className = 'release-assets';
@@ -106,7 +106,7 @@
       if (!edit) {
         edit = document.createElement('button'); edit.type = 'button'; edit.className = 'btn-icon-link skill-action-button skill-nickname-button'; edit.setAttribute('aria-label', '编辑 Skill 昵称'); edit.title = '编辑 Skill 昵称';
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('width', '16'); svg.setAttribute('height', '16'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '2'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round'); svg.setAttribute('aria-hidden', 'true');
-        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'path'); icon.setAttribute('d', 'M12 20H4v-8M16 4l4 4M9 15l-1 4 4-1L21 9a2.83 2.83 0 0 0-4-4Z'); svg.append(icon); edit.append(svg); container.append(edit);
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'path'); icon.setAttribute('d', 'M3 4h12M9 4v13M5 17h5M15 13l3 3M12 20l1-4 6-6a2.12 2.12 0 0 1 3 3l-6 6-4 1Z'); svg.append(icon); edit.append(svg); container.append(edit);
         edit.onclick = e => { e.stopPropagation(); nicknamePath = doc.dataset.skillPath; nicknameInput.value = readNickname(nicknamePath); nicknameHint.textContent = '仅保存在本插件的本机存储，不修改 Skill 文件。'; nicknameDialog.showModal(); nicknameInput.focus(); };
       }
       const text = readNickname(path);

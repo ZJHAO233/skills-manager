@@ -1,0 +1,37 @@
+.skills-container .skill-association-button { display: inline-flex; flex: 0 0 26px; align-items: center; justify-content: center; box-sizing: border-box; width: 26px; height: 26px; min-width: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #64748b; cursor: pointer; }
+.skills-container .skill-association-button svg { width: 16px; height: 16px; }
+.skills-container .skill-association-button:hover { background: #eef2ff; color: #4f46e5; }
+.skill-association-dialog { box-sizing: border-box; width: 600px; max-width: calc(100vw - 32px); max-height: min(88vh, calc(100dvh - 32px)); overflow: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; color: #334155; color-scheme: light; box-shadow: 0 20px 60px #0f172a26; text-align: left; font: 12px/1.7 system-ui, sans-serif; }
+.skill-association-dialog::backdrop { background: #0f172a80; }
+.skill-association-dialog h2 { margin: 0 0 16px; color: #0f172a; font: 650 17px/1.5 system-ui, sans-serif; }
+.skill-association-dialog button { flex-shrink: 0; padding: 7px 12px; border: 1px solid #cbd5e1; border-radius: 7px; background: #f8fafc; color: inherit; font: 500 12px/1.5 system-ui, sans-serif; cursor: pointer; }
+.skill-association-dialog button:hover:not(:disabled) { background: #eef2ff; border-color: #a5b4fc; color: #4338ca; }
+.skill-association-dialog button:disabled { opacity: .5; cursor: default; }
+.skill-association-dialog button:focus-visible,.skills-container .skill-association-button:focus-visible { outline: 2px solid #6366f1; outline-offset: 3px; }
+.skill-association-dialog .association-primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.skill-association-dialog .association-primary:hover:not(:disabled) { background: #4338ca; color: #fff; }
+.association-hint { margin: 0 0 12px; color: #64748b; overflow-wrap: anywhere; }
+.association-repo-row { display: flex; gap: 8px; }
+.association-repo-row input { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; background: #f8fafc; color: inherit; font: inherit; }
+.association-repo-row input:focus-visible { outline: 2px solid #6366f1; outline-offset: 1px; }
+.association-candidates { min-width: 0; max-height: 30vh; overflow: auto; margin: 16px 0; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
+.association-candidates legend { padding: 0 6px; font-weight: 600; }
+.association-candidate { display: flex; gap: 10px; align-items: flex-start; padding: 9px; border-radius: 6px; cursor: pointer; }
+.association-candidate:hover { background: #eef2ff; }
+.association-candidate input { flex-shrink: 0; margin: 4px 0 0; accent-color: #4f46e5; }
+.association-candidate span { min-width: 0; overflow-wrap: anywhere; }
+.association-candidate strong,.association-candidate small { display: block; }
+.association-candidate small { color: #64748b; margin-top: 3px; }
+.association-warning { padding: 10px 12px; margin: 16px 0; border: 1px solid #fcd34d; border-radius: 8px; color: #92400e; background: #fffbeb; }
+.association-status { min-height: 20px; margin: 14px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.association-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 14px; border-top: 1px solid #e2e8f0; }
+body:has(.skills-container.dark-theme) .skill-association-dialog { background: #1e293b; color: #cbd5e1; border-color: #334155; color-scheme: dark; }
+body:has(.skills-container.dark-theme) .skill-association-dialog h2 { color: #f1f5f9; }
+body:has(.skills-container.dark-theme) :is(.association-hint,.association-candidate small) { color: #a8b5c9; }
+body:has(.skills-container.dark-theme) :is(.association-candidates,.association-actions) { border-color: #334155; }
+body:has(.skills-container.dark-theme) .skill-association-dialog button,body:has(.skills-container.dark-theme) .association-repo-row input { background: #182333; border-color: #475569; color: #cbd5e1; }
+body:has(.skills-container.dark-theme) .skill-association-dialog .association-primary { background: #4f46e5; color: #fff; border-color: #6366f1; }
+body:has(.skills-container.dark-theme) .association-candidate:hover,body:has(.skills-container.dark-theme) .skill-association-dialog button:hover:not(:disabled),.skills-container.dark-theme .skill-association-button:hover { background: #312e55; color: #c7d2fe; }
+.skills-container.dark-theme .skill-association-button { color: #94a3b8; }
+body:has(.skills-container.dark-theme) .association-warning { background: #422f16; border-color: #a16207; color: #fde68a; }
+@media (max-width: 480px) { .skill-association-dialog { padding: 18px; } .association-repo-row { flex-wrap: wrap; } }

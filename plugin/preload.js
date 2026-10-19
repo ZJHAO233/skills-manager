@@ -315,6 +315,7 @@ async function getSkillsList() {
             const meta = JSON.parse(metaJson);
             if (meta.source_url) skill.sourceUrl = meta.source_url;
             if (meta.release) skill.release = meta.release;
+            if (meta.source_path) skill.sourcePath = meta.source_path;
             if (meta.installed_at) skill.installedAt = meta.installed_at;
             if (meta.name) skill.name = meta.name;
             // 确保描述是字符串类型
@@ -369,6 +370,7 @@ async function getSkillsList() {
             let name = dirent.name;
             let description = '';
             let release = null;
+            let sourcePath = null;
 
             const metaPath = path.join(skillPath, 'metadata.json');
             const mdPath = path.join(skillPath, 'SKILL.md');
@@ -379,6 +381,7 @@ async function getSkillsList() {
                 const meta = JSON.parse(metaJson);
                 if (meta.source_url) sourceUrl = meta.source_url;
                 if (meta.release) release = meta.release;
+                if (meta.source_path) sourcePath = meta.source_path;
                 if (meta.installed_at) installedAt = meta.installed_at;
                 if (meta.name) name = meta.name;
                 if (meta.description && typeof meta.description === 'string') {
@@ -403,6 +406,7 @@ async function getSkillsList() {
               agent: agentConf.id,
               localPath: skillPath,
               sourceUrl: sourceUrl,
+              sourcePath,
               release,
               installedAt: installedAt,
               updatedAt: updatedAt
@@ -617,7 +621,7 @@ async function installFromPreview(previewData, selectedSkillNames, targetPaths, 
 
     for (const skill of selectedSkills) {
       const sourcePath = skill.path === '.' ? cloneDir : path.join(cloneDir, ...skill.path.split('/'));
-      const skillSpecificUrl = constructSpecificUrl(repoUrl, skill.path);
+      const skillSpecificUrl = previewData.local ? '本地/未托管' : constructSpecificUrl(repoUrl, skill.sourcePath || skill.path);
 
       for (const tp of targetPaths) {
         const baseDir = getPathForAgent(tp);
@@ -640,7 +644,9 @@ async function installFromPreview(previewData, selectedSkillNames, targetPaths, 
             description: (typeof skill.description === 'string' ? skill.description : '') || '',
             source_url: previewData.release ? previewData.gitUrl : skillSpecificUrl,
             installed_at: new Date().toISOString(),
-            type: previewData.release ? 'release' : 'git',
+            type: previewData.local ? 'local' : previewData.release ? 'release' : 'git',
+            local_import: previewData.local || null,
+            source_path: skill.sourcePath || null,
             release: previewData.release || null
           }, null, 2));
         } catch (e) { throw new Error('安装文件已写入，但保存元数据失败：' + e.message); }
@@ -661,6 +667,8 @@ async function installFromPreview(previewData, selectedSkillNames, targetPaths, 
             localPath: finalDir,
             sourceUrl: previewData.release ? previewData.gitUrl : skillSpecificUrl,
             release: previewData.release || null,
+            localImport: previewData.local || null,
+            sourcePath: skill.sourcePath || null,
             installedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
@@ -752,13 +760,17 @@ async function updateSkill(skillId, onProgress) {
   const tryUpdate = (targetUrl) => {
     return previewSourceSkills(targetUrl, onProgress).then(async previewData => {
       // 允许模糊匹配：如果名字不完全一致（如大小写），尝试寻找最接近的
-      const matched = previewData.skills.find(s => s.name.toLowerCase() === skill.name.toLowerCase());
+      const matched = previewData.skills.find(s => skill.sourcePath ? s.path === skill.sourcePath : s.name.toLowerCase() === skill.name.toLowerCase());
       if (!matched) {
         cancelPreview(previewData.tempDir);
         const available = previewData.skills.map(s => s.name).join(', ');
         throw new Error(`更新失败：仓库中未找到名为 "${skill.name}" 的技能 (该仓库包含: ${available || '无'})`);
       }
-      await installFromPreview(previewData, [matched.name], [parentDir], targetUrl, onProgress);
+      if (skill.sourcePath) {
+        const localName = path.basename(skill.localPath);
+        previewData.skills = [{ ...matched, name: localName, sourcePath: matched.path }];
+        await installFromPreview(previewData, [localName], [parentDir], targetUrl, onProgress);
+      } else await installFromPreview(previewData, [matched.name], [parentDir], targetUrl, onProgress);
       return true;
     });
   };
@@ -794,7 +806,7 @@ async function batchUpdateSkills(skillIds, onProgress) {
       continue;
     }
 
-    if (skill.release) {
+    if (skill.release || skill.sourcePath) {
       try { await updateSkill(id, onProgress); results.success.push(id); }
       catch (error) { results.failed.push({ id, error: error.message }); }
       continue;
@@ -819,7 +831,7 @@ async function batchUpdateSkills(skillIds, onProgress) {
       for (const skill of skills) {
         try {
           // 在克隆结果中寻找对应的技能（模糊匹配名字）
-          const matched = previewData.skills.find(s => s.name.toLowerCase() === skill.name.toLowerCase());
+          const matched = previewData.skills.find(s => skill.sourcePath ? s.path === skill.sourcePath : s.name.toLowerCase() === skill.name.toLowerCase());
           if (!matched) {
             throw new Error(`仓库中未找到名为 "${skill.name}" 的技能`);
           }
@@ -1177,8 +1189,33 @@ function getSupportedAgents() {
   });
 }
 
+const associations = require('./association.cjs').createAssociations({
+  getSkills: getSkillsList,
+  previewRepo: repo => previewSourceSkills(repo),
+  loadRegistry: getRawRegistry,
+  saveRegistry,
+  invalidate: () => { CACHED_SKILLS = null; },
+  cleanup: async dir => { try { await fs.promises.rm(dir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }); } catch {} }
+});
 // 挂载
+async function chooseImportPath(options) {
+  const host = window.ztools || window.utools;
+  if (!host?.showOpenDialog) throw new Error('当前宿主不支持文件选择，请在 ZTools 中打开插件');
+  const result = await host.showOpenDialog(options);
+  return Array.isArray(result) ? result[0] : result?.filePaths?.[0];
+}
 window.preloadAPI = {
+  previewAssociation: (skillPath, repo) => associations.preview(skillPath, repo),
+  commitAssociation: (token, selectedPath) => associations.commit(token, selectedPath),
+  getCodexPath: () => path.join(process.env.CODEX_HOME || path.join(require('os').homedir(), '.codex'), 'skills'),
+  chooseImportTarget: () => chooseImportPath({ title: '选择安装目标目录', properties: ['openDirectory', 'createDirectory'] }),
+  chooseLocalImport: async (kind) => {
+    if (!['zip', 'folder'].includes(kind)) throw new Error('不支持的导入类型');
+    const selected = await chooseImportPath(kind === 'zip' ? { title: '选择 Skill ZIP', properties: ['openFile'], filters: [{ name: 'Skill ZIP', extensions: ['zip'] }] } : { title: '选择 Skill 文件夹', properties: ['openDirectory'] });
+    if (!selected) return null;
+    const importer = require('./local-import.cjs');
+    return kind === 'zip' ? importer.previewZip(selected) : importer.previewFolder(selected);
+  },
   readSkillDocs: async (skillPath) => {
     const skills = await getSkillsList();
     const normalize = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);

@@ -262,11 +262,67 @@ function metadata(text, fallback) {
   }
   return { name: values.name || fallback, description: values.description || '' };
 }
+function checkCancelled(signal) {
+  if (signal.aborted) throw fail('CANCELLED', 'Release download cancelled.');
+}
+async function prepareArchive(buffer, { name = 'local-skill', onProgress, signal = new AbortController().signal } = {}) {
+  checkCancelled(signal);
+  if (!Buffer.isBuffer(buffer) || buffer.length > MAX_ZIP) throw fail('DOWNLOAD_TOO_LARGE', 'Invalid or oversized release download.');
+  const inspected = inspectDirectory(buffer);
+  const zip = await JSZip.loadAsync(inspected.buffer, { createFolders: false });
+  const entries = Object.values(zip.files);
+  if (entries.length > MAX_ENTRIES) throw fail('ARCHIVE_LIMIT', `ZIP 文件条目数量超过 ${MAX_ENTRIES} 个的限制。`);
+  checkNames(entries);
+  let total = 0;
+  for (const entry of entries) {
+    safeName(entry.unsafeOriginalName || entry.name);
+    if ((Number(entry.unixPermissions) & 0xf000) === 0xa000) throw fail('UNSAFE_ARCHIVE', 'Archive symlinks are forbidden.');
+    if (!entry.dir) {
+      const size = inspected.sizes.get(entry.unsafeOriginalName || entry.name);
+      const loadedSize = entry._data && entry._data.uncompressedSize;
+      if (loadedSize !== size && !(size === 0 && loadedSize === undefined)) throw fail('UNSAFE_ARCHIVE', 'Archive entry size mismatch.');
+      if (!Number.isSafeInteger(size) || size < 0 || size > MAX_FILE || (total += size) > MAX_TOTAL) throw fail('ARCHIVE_LIMIT', 'Archive extraction size limit exceeded.');
+    }
+  }
+  const files = entries.filter(e => !e.dir);
+  const first = files[0] && files[0].name.split('/')[0];
+  const strip = first && files.every(e => e.name.startsWith(first + '/')) && entries.every(e => e.name === first + '/' || e.name.startsWith(first + '/')) ? first + '/' : '';
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai_skills_preview_'));
+  const cloneDir = path.join(tempDir, 'repo');
+  try {
+    await fs.mkdir(cloneDir);
+    const skills = [];
+    let extracted = 0;
+    for (const entry of files) {
+      checkCancelled(signal);
+      const relative = entry.name.slice(strip.length);
+      const target = path.join(cloneDir, ...relative.split('/'));
+      const content = await inflate(entry, inspected.sizes.get(entry.unsafeOriginalName || entry.name));
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(target, content, { flag: 'wx', mode: 0o600 });
+      const parts = relative.split('/');
+      if (/^skill\.md$/i.test(parts[parts.length - 1]) && !parts.slice(0, -1).some(p => ['.git', 'node_modules'].includes(p.toLowerCase()))) {
+        const skillPath = parts.slice(0, -1).join('/') || '.';
+        skills.push({ ...metadata(content.toString('utf8'), skillPath === '.' ? name : parts[parts.length - 2]), path: skillPath });
+      }
+      extracted++;
+      progress(onProgress, { stage: 'extract', current: extracted, total: files.length, text: `Extracting release: ${extracted}/${files.length} files` });
+      if (extracted % 32 === 0) await yieldImmediate();
+    }
+    checkCancelled(signal);
+    if (!skills.length) throw fail('NO_SKILLS', 'No SKILL.md packages found in the release ZIP.');
+    return { tempDir, cloneDir, skills, gitUrl: '' };
+  } catch (error) {
+    try {
+      await fs.rm(tempDir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+    } catch (cleanupError) {
+      progress(onProgress, { text: `[警告] 临时目录清理失败，请稍后手动删除: ${tempDir}\n` });
+    }
+    throw error;
+  }
+}
 function createReleaseClient({ requestJSON = async (url, { signal } = {}) => JSON.parse((await transfer(url, 5 * MiB, undefined, 0, signal)).toString('utf8')), download = (url, onProgress, { signal } = {}) => transfer(url, MAX_ZIP, onProgress, 0, signal) } = {}) {
   const jobs = new Set();
-  function checkCancelled(signal) {
-    if (signal.aborted) throw fail('CANCELLED', 'Release download cancelled.');
-  }
   function run(operation) {
     const controller = new AbortController();
     const job = { controller, done: null };
@@ -308,58 +364,8 @@ function createReleaseClient({ requestJSON = async (url, { signal } = {}) => JSO
     if (asset.digest) {
       if (!/^sha256:[a-f0-9]{64}$/i.test(asset.digest) || crypto.createHash('sha256').update(buffer).digest('hex') !== asset.digest.slice(7).toLowerCase()) throw fail('DIGEST_MISMATCH', 'Release SHA-256 verification failed.');
     }
-    const inspected = inspectDirectory(buffer);
-    const zip = await JSZip.loadAsync(inspected.buffer, { createFolders: false });
-    const entries = Object.values(zip.files);
-    if (entries.length > MAX_ENTRIES) throw fail('ARCHIVE_LIMIT', `ZIP 文件条目数量超过 ${MAX_ENTRIES} 个的限制。`);
-    checkNames(entries);
-    let total = 0;
-    for (const entry of entries) {
-      safeName(entry.unsafeOriginalName || entry.name);
-      if ((Number(entry.unixPermissions) & 0xf000) === 0xa000) throw fail('UNSAFE_ARCHIVE', 'Archive symlinks are forbidden.');
-      if (!entry.dir) {
-        const size = inspected.sizes.get(entry.unsafeOriginalName || entry.name);
-        const loadedSize = entry._data && entry._data.uncompressedSize;
-        if (loadedSize !== size && !(size === 0 && loadedSize === undefined)) throw fail('UNSAFE_ARCHIVE', 'Archive entry size mismatch.');
-        if (!Number.isSafeInteger(size) || size < 0 || size > MAX_FILE || (total += size) > MAX_TOTAL) throw fail('ARCHIVE_LIMIT', 'Archive extraction size limit exceeded.');
-      }
-    }
-    const files = entries.filter(e => !e.dir);
-    const first = files[0] && files[0].name.split('/')[0];
-    const strip = first && files.every(e => e.name.startsWith(first + '/')) && entries.every(e => e.name === first + '/' || e.name.startsWith(first + '/')) ? first + '/' : '';
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ai_skills_preview_'));
-    const cloneDir = path.join(tempDir, 'repo');
-    try {
-      await fs.mkdir(cloneDir);
-      const skills = [];
-      let extracted = 0;
-      for (const entry of files) {
-        checkCancelled(signal);
-        const relative = entry.name.slice(strip.length);
-        const target = path.join(cloneDir, ...relative.split('/'));
-        const content = await inflate(entry, inspected.sizes.get(entry.unsafeOriginalName || entry.name));
-        await fs.mkdir(path.dirname(target), { recursive: true });
-        await fs.writeFile(target, content, { flag: 'wx', mode: 0o600 });
-        const parts = relative.split('/');
-        if (parts[parts.length - 1] === 'SKILL.md' && !parts.slice(0, -1).some(p => ['.git', 'node_modules'].includes(p.toLowerCase()))) {
-          const skillPath = parts.slice(0, -1).join('/') || '.';
-          skills.push({ ...metadata(content.toString('utf8'), skillPath === '.' ? result.repo.split('/')[1] : parts[parts.length - 2]), path: skillPath });
-        }
-        extracted++;
-        progress(onProgress, { stage: 'extract', current: extracted, total: files.length, text: `Extracting release: ${extracted}/${files.length} files` });
-        if (extracted % 32 === 0) await yieldImmediate();
-      }
-      checkCancelled(signal);
-      if (!skills.length) throw fail('NO_SKILLS', 'No SKILL.md packages found in the release ZIP.');
-      return { tempDir, cloneDir, skills, gitUrl: `https://github.com/${result.repo}`, release: { kind: isSource ? 'source' : 'asset', repo: result.repo, tag: release.tag, assetId: isSource ? null : asset.id, assetName: asset.name } };
-    } catch (error) {
-      try {
-        await fs.rm(tempDir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
-      } catch (cleanupError) {
-        progress(onProgress, { text: `[警告] 临时目录清理失败，请稍后手动删除: ${tempDir}\n` });
-      }
-      throw error;
-    }
+    const prepared = await prepareArchive(buffer, { name: result.repo.split('/')[1], onProgress, signal });
+    return { ...prepared, gitUrl: `https://github.com/${result.repo}`, release: { kind: isSource ? 'source' : 'asset', repo: result.repo, tag: release.tag, assetId: isSource ? null : asset.id, assetName: asset.name } };
   }
   return {
     list: repoUrl => run(signal => list(repoUrl, signal)),
@@ -372,4 +378,4 @@ function createReleaseClient({ requestJSON = async (url, { signal } = {}) => JSO
   };
 }
 
-module.exports = { createReleaseClient };
+module.exports = { createReleaseClient, prepareArchive };

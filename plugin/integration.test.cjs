@@ -117,6 +117,12 @@ function sandbox(options = {}) {
       if (name === 'os') return { tmpdir: () => TEMP, homedir: () => HOME };
       if (name === './download.cjs') return { createDownloader: () => downloader };
       if (name === './release.cjs') return { createReleaseClient: () => releaseClient };
+      if (name === './association.cjs') return {
+        createAssociations: () => ({
+          preview: async () => { throw new Error('Unexpected association preview'); },
+          commit: async () => { throw new Error('Unexpected association commit'); }
+        })
+      };
       if (name === './install.cjs') return {
         async installFolderAsync(sourcePath, baseDir, safeName, { onProgress } = {}) {
           const destination = path.join(baseDir, safeName);
@@ -301,6 +307,32 @@ test('installFromPreview preserves release identity in metadata and registry', a
   assert.deepEqual(fixture.calls.clone, []);
 });
 
+test('local root preview installs as unhosted local metadata and registry entry', async () => {
+  const local = { kind: 'folder', path: path.join(HOME, 'imports', 'sample') };
+  const fixture = sandbox({ preview: {
+    local, release: null, gitUrl: '',
+    skills: [{ name: 'sample', path: '.', description: 'Local sample skill' }]
+  } });
+  fixture.seed([]);
+  fixture.materializePreview();
+  assert.equal(await fixture.api.installFromPreview(fixture.preview, ['sample'], ['claudecode'], ''), true);
+  const destination = path.join(HOME, '.claude', 'skills', 'sample');
+  const metadata = JSON.parse(fixture.disk.mock.readFileSync(path.join(destination, 'metadata.json')));
+  const registry = JSON.parse(fixture.disk.mock.readFileSync(path.join(HOME, '.ai-skills-manager', 'registry.json')));
+  assert.equal(metadata.type, 'local');
+  assert.equal(metadata.source_url, '本地/未托管');
+  assert.equal(metadata.release, null);
+  assert.deepEqual(metadata.local_import, local);
+  assert.equal(registry[0].sourceUrl, '本地/未托管');
+  assert.equal(registry[0].release, null);
+  assert.deepEqual(registry[0].localImport, local);
+  assert.equal(registry[0].localPath, destination);
+  assert.equal(fixture.disk.mock.readFileSync(path.join(destination, 'SKILL.md')), '# Sample');
+  assert.deepEqual(fixture.calls.list, []);
+  assert.deepEqual(fixture.calls.prepare, []);
+  assert.deepEqual(fixture.calls.clone, []);
+});
+
 test('same release tag and asset short-circuit update without preparation or clone', async () => {
   const fixture = sandbox();
   fixture.seed([fixture.releaseSkill()]);
@@ -374,6 +406,41 @@ test('unchanged source snapshot tag avoids preparing a same-name asset', async (
   assert.deepEqual(fixture.calls.prepare, []);
   assert.deepEqual(fixture.calls.clone, []);
 });
+
+for (const batch of [false, true]) {
+  test(`associated source-path ${batch ? 'batch' : 'single'} update preserves the local folder and exact remote choice`, async () => {
+    const sourcePath = 'skills/remote-name';
+    const fixture = sandbox({ clone(mockFs, gitUrl, cloneDir) {
+      mockFs.writeFileSync(path.join(cloneDir, sourcePath, 'SKILL.md'), '# Correct remote content');
+      mockFs.writeFileSync(path.join(cloneDir, 'skills', 'local-name', 'SKILL.md'), '# Wrong same-name content');
+    } });
+    const localPath = path.join(HOME, '.claude', 'skills', 'local-name');
+    const unrelatedPath = path.join(HOME, '.claude', 'skills', 'unrelated');
+    fixture.disk.mock.writeFileSync(path.join(localPath, 'SKILL.md'), '# Old local content');
+    fixture.disk.mock.writeFileSync(path.join(unrelatedPath, 'SKILL.md'), '# Keep unchanged');
+    fixture.seed([fixture.releaseSkill({ name: 'local-name', localPath, release: null, sourcePath })]);
+    if (batch) {
+      assert.deepEqual(plain(await fixture.api.batchUpdateSkills(['sample-id'])), { success: ['sample-id'], failed: [] });
+    } else {
+      assert.equal(await fixture.api.updateSkill('sample-id'), true);
+    }
+    assert.equal(fixture.disk.mock.readFileSync(path.join(localPath, 'SKILL.md')), '# Correct remote content');
+    assert.equal(fixture.disk.mock.readFileSync(path.join(unrelatedPath, 'SKILL.md')), '# Keep unchanged');
+    assert.equal(fixture.disk.mock.existsSync(path.join(HOME, '.claude', 'skills', 'remote-name')), false);
+    const metadata = JSON.parse(fixture.disk.mock.readFileSync(path.join(localPath, 'metadata.json')));
+    assert.equal(metadata.name, 'local-name');
+    assert.equal(metadata.source_path, sourcePath);
+    assert.equal(metadata.type, 'git');
+    const registry = JSON.parse(fixture.disk.mock.readFileSync(path.join(HOME, '.ai-skills-manager', 'registry.json')));
+    assert.equal(registry.length, 1);
+    assert.equal(registry[0].id, 'sample-id');
+    assert.equal(registry[0].localPath, localPath);
+    assert.equal(registry[0].sourcePath, sourcePath);
+    assert.equal(fixture.calls.clone.length, 1);
+    assert.deepEqual(fixture.calls.prepare, []);
+    assert.deepEqual(fixture.calls.list, []);
+  });
+}
 
 test('Git updates remain Git installs even when releases could be available', async () => {
   const fixture = sandbox({ clone(mockFs, gitUrl, cloneDir) {

@@ -19,7 +19,7 @@ test('ZIP dependency works without a global setImmediate in preload', async () =
   const loaded = await Zip.loadAsync(buffer);
   assert.equal(await loaded.file('SKILL.md').async('string'), 'hello');
 });
-const { createReleaseClient } = require('./release.cjs');
+const { createReleaseClient, prepareArchive } = require('./release.cjs');
 const REPO = 'https://github.com/example/skills';
 const URL = 'https://github.com/example/skills/releases/download/v1/skills.zip';
 
@@ -88,6 +88,50 @@ async function preview(files, inspect, options) {
   const result = await client.prepare(REPO, 42);
   try { await inspect(result); } finally { await fs.rm(result.tempDir, { recursive: true, force: true }); }
 }
+
+test('local archives retain discovery metadata, fallback names and preview shape without network', async t => {
+  t.mock.method(require('node:https'), 'get', () => { throw new Error('Unexpected network request'); });
+  for (const options of [undefined, { name: 'chosen-name' }]) {
+    const events = [];
+    const result = await prepareArchive(await archive({
+      'bundle/SKILL.md': '# root',
+      'bundle/nested/SKILL.md': '# nested',
+      'bundle/named/SKILL.md': '---\nname: Metadata name\ndescription: Saved description\n---\n'
+    }), { ...options, onProgress: event => { events.push(event); throw new Error('UI failed'); } });
+    try {
+      assert.deepEqual(Object.keys(result).sort(), ['tempDir', 'cloneDir', 'skills', 'gitUrl'].sort());
+      assert.equal(result.gitUrl, '');
+      assert.deepEqual(result.skills, [
+        { name: options ? options.name : 'local-skill', description: '', path: '.' },
+        { name: 'nested', description: '', path: 'nested' },
+        { name: 'Metadata name', description: 'Saved description', path: 'named' }
+      ]);
+      assert.equal(await fs.readFile(path.join(result.cloneDir, 'SKILL.md'), 'utf8'), '# root');
+      assert.equal(events.length, 3);
+      assert.ok(events.every(event => event.stage === 'extract' && typeof event.text === 'string'));
+    } finally { await fs.rm(result.tempDir, { recursive: true, force: true }); }
+  }
+});
+
+test('local archives without skills reject and remove their temporary preview', async t => {
+  const remove = fs.rm;
+  const removed = [];
+  t.mock.method(fs, 'rm', async (name, options) => {
+    removed.push(name);
+    return remove(name, options);
+  });
+  await assert.rejects(prepareArchive(await archive({ 'README.md': '# no skills' })), { code: 'NO_SKILLS' });
+  assert.equal(removed.length, 1);
+  await assert.rejects(fs.stat(removed[0]), { code: 'ENOENT' });
+});
+
+test('local archives share safety limits and accept an abort signal', async () => {
+  await assert.rejects(prepareArchive(await archive({ '../SKILL.md': '# unsafe' })), { code: 'UNSAFE_ARCHIVE' });
+  await assert.rejects(prepareArchive(Buffer.alloc(50 * 1024 * 1024 + 1)), { code: 'DOWNLOAD_TOO_LARGE' });
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(prepareArchive(await archive({ 'SKILL.md': '# skill' }), { signal: controller.signal }), { code: 'CANCELLED' });
+});
 
 test('no-skills release preserves discovery error when cleanup rejects and warning callback throws', async t => {
   const { client } = fixture(await archive({ 'README.md': '# Plugin repository' }));

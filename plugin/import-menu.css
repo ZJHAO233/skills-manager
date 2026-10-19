@@ -1,0 +1,157 @@
+.skills-container{margin:0!important;width:100%;min-width:0}#app{max-width:100%;box-sizing:border-box}.skills-container .glass-card.grid .card-top{display:grid;grid-template-columns:38px minmax(0,1fr);gap:8px 12px;align-items:start}.skills-container .glass-card.grid .card-icon{grid-column:1;grid-row:1;align-self:start;margin-top:2px;width:38px;height:52px;display:flex;align-items:center;justify-content:center}.skills-container .glass-card.grid .card-meta{display:contents}.skills-container .glass-card.grid .card-title-row{grid-column:2;grid-row:1;display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;width:100%}.skills-container .glass-card.grid .card-title-row h3{flex:none!important;flex-basis:auto!important;width:100%;min-width:0;margin:0;line-height:20px}.skills-container .glass-card.grid .badge-row{max-width:100%;display:flex;flex-wrap:nowrap;gap:3px}.skills-container .glass-card.grid .badge-row .skill-action-button,.skills-container .glass-card.grid .badge-row .skill-doc-button{width:20px!important;min-width:20px!important;height:24px!important;padding:2px!important}.skills-container .glass-card.grid .badge-tag{max-width:70px;min-width:0;font-size:9px;padding:2px 5px}.skills-container .glass-card.grid .skill-desc{grid-column:1/-1;grid-row:2;margin:2px 0 0;text-align:left;width:100%;min-width:0;line-height:1.6}.skills-container .glass-card.grid .card-body{margin-top:2px}
+.skills-container .glass-card.grid .card-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:12px;row-gap:7px}.skills-container .glass-card.grid .card-body>.info-row:first-child{grid-column:1/-1}.skills-container .glass-card.grid .card-body>.info-row:not(:first-child){font-size:10px;gap:4px;opacity:.8;min-width:0}.skills-container .glass-card.grid .card-body>.info-row:nth-child(2)::before{content:'安装';white-space:nowrap}.skills-container .glass-card.grid .card-body>.info-row:nth-child(3)::before{content:'更新';white-space:nowrap}.skills-container .glass-card.grid .card-body>.info-row:not(:first-child)>svg{display:none}.skills-container .glass-card.grid .card-body>.info-row:not(:first-child)>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.skills-container .glass-card.grid{gap:8px}.skills-container .glass-card.grid .card-footer{padding-top:9px}
+.local-import-trigger,
+.control-panel .install-box {
+  display: none !important;
+}
+.control-panel .search-box {
+  flex: 1 1 100%;
+  width: auto;
+  min-width: 0;
+}
+.app-content {
+  max-width: 1100px;
+}
+.skill-import-menu,
+.skill-import-dialog {
+  --import-surface: #fff;
+  --import-text: #1e293b;
+  --import-muted: #64748b;
+  --import-border: #e2e8f0;
+  --import-hover: #eef2ff;
+  --import-accent: #4f46e5;
+  box-sizing: border-box;
+  color: var(--import-text);
+  background: var(--import-surface);
+  border: 1px solid var(--import-border);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color-scheme: light;
+}
+body:has(.skills-container.dark-theme) .skill-import-menu,
+body:has(.skills-container.dark-theme) .skill-import-dialog {
+  --import-surface: #1e2433;
+  --import-text: #e2e8f0;
+  --import-muted: #a2acc0;
+  --import-border: #364156;
+  --import-hover: #303457;
+  --import-accent: #a5b4fc;
+  color-scheme: dark;
+}
+.skill-import-menu {
+  position: fixed;
+  z-index: 2000;
+  width: 190px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  box-shadow: 0 12px 34px #0f172a26;
+}
+.skill-import-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.skill-import-menu button svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.8}.skill-import-menu button:focus-visible{outline:none!important;box-shadow:inset 0 0 0 1px #818cf866}.skill-import-menu button span{font-size:12px;font-weight:500}
+.skill-import-menu button:last-child {
+  margin-top: 4px;
+  border-top: 1px solid var(--import-border);
+  border-radius: 0 0 7px 7px;
+}
+.skill-import-menu button:hover,
+.skill-import-menu button:focus-visible {
+  background: var(--import-hover);
+  color: var(--import-accent);
+}
+.skill-import-menu button:focus-visible,
+.skill-import-dialog button:focus-visible,
+.skill-import-dialog input:focus-visible {
+  outline: 2px solid var(--import-accent);
+  outline-offset: 2px;
+}
+.skill-import-dialog {
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 24px;
+  box-shadow: 0 20px 64px #0f172a40;
+}
+.skill-import-dialog::backdrop {
+  background: #0f172a73;
+  backdrop-filter: blur(3px);
+}
+.skill-import-dialog h2 {
+  margin: 0 0 8px;
+  color: inherit;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+.skill-import-hint {
+  margin: 0 0 20px;
+  color: var(--import-muted);
+}
+.skill-import-dialog label {
+  display: block;
+  margin-bottom: 7px;
+  font-weight: 600;
+}
+.skill-import-dialog input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--import-border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.skill-import-dialog input::placeholder {
+  color: var(--import-muted);
+}
+.skill-import-status {
+  min-height: 20px;
+  margin: 10px 0 18px;
+  color: var(--import-muted);
+  overflow-wrap: anywhere;
+}
+.skill-import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.skill-import-actions button {
+  padding: 8px 15px;
+  border: 1px solid var(--import-border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.skill-import-actions .skill-import-primary {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+}
+.skill-import-actions button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+.skill-import-dialog button:disabled,
+.skill-import-dialog input:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}

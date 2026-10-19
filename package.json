@@ -1,12 +1,12 @@
 {
   "name": "skills-manager",
-  "version": "2.0.3",
+  "version": "2.3.1",
   "private": true,
   "author": "Joel",
   "scripts": {
     "test": "node --test plugin/*.test.cjs",
     "lint": "node --check plugin/preload.js && node --check plugin/download.cjs && node --check plugin/release.cjs && node --check plugin/install.cjs && node --check plugin/docs.cjs && node --check plugin/download-controls.js",
-    "verify:ui": "node verify-ui.cjs",
+    "verify:ui": "node verify-ui.cjs && node verify-import-ui.cjs && node verify-menu-ui.cjs",
     "pack": "node pack.cjs"
   },
   "devDependencies": {"@electron/asar":"^4.0.0","@playwright/test":"^1.58.0"}

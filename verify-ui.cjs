@@ -29,7 +29,8 @@ const http=require('node:http');const fs=require('node:fs');const path=require('
   await progress({stage:'install',state:'start'});assert.equal(await meter.isVisible(),true);await progress({stage:'install',state:'done'});assert.equal(await panel.isVisible(),false);
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-download-state',{detail:{active:true}})));await page.locator('#cancel-skill-download').click();assert.ok(await page.evaluate(()=>window.cancelled));
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-download-state',{detail:{active:false}})));assert.equal(await page.locator('#cancel-skill-download').isVisible(),false);
- await page.getByRole('button',{name:'编辑 Skill 昵称'}).first().click();
+ assert.ok(await page.locator('.badge-row').first().evaluate(e=>{const b=[...e.querySelectorAll('button')];return b.indexOf(e.querySelector('.skill-association-button'))<b.indexOf(e.querySelector('.skill-nickname-button'));}));
+  await page.getByRole('button',{name:'编辑 Skill 昵称'}).first().click();
   assert.equal(await page.locator('#skill-nickname input').evaluate(e=>Math.round(e.getBoundingClientRect().height)),36);
   assert.ok(await page.locator('#skill-nickname').evaluate(e=>e.getBoundingClientRect().width<=400));
   await page.screenshot({path:path.join(__dirname,'nickname-dialog.png')});
@@ -37,8 +38,8 @@ const http=require('node:http');const fs=require('node:fs');const path=require('
   const card=page.locator('.glass-card').first(); assert.ok(await card.evaluate(e=>{const r=e.getBoundingClientRect();return [...e.querySelectorAll('.skill-doc-button,.skill-note-button')].every(b=>b.getBoundingClientRect().right<=r.right);}));
   await page.getByTitle('查看使用说明').first().click(); await page.locator('#skill-docs pre').getByText('# Usage <script>unsafe()</script>',{exact:true}).waitFor(); assert.equal(await page.locator('#skill-docs pre script').count(),0); await page.locator('#skill-docs').getByRole('button',{name:'SKILL.md',exact:true}).click(); assert.equal(await page.locator('#skill-docs pre').textContent(),'skill instructions'); await page.locator('#skill-docs').getByRole('button',{name:'关闭',exact:true}).click();
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('skill-open-docs',{detail:{path:'C:\\Test\\skill',source:'https://github.com/example/skill/tree/main/subdir?tab=readme'}}))); assert.equal(await page.evaluate(()=>window.openedSource),'https://github.com/example/skill');assert.equal(await page.locator('#skill-docs').isVisible(),false);
-  await page.getByTitle('全量审计并同步全机 AI 技能').click(); assert.ok(await page.evaluate(()=>window.refreshed)); await page.getByText('SkillHub · Joel · 2.0.3',{exact:true}).waitFor();
- await page.locator('.install-box input').fill('https://github.com/example/skill'); await page.locator('.install-box button').click();
+  await page.getByTitle('全量审计并同步全机 AI 技能').click(); assert.ok(await page.evaluate(()=>window.refreshed)); await page.getByText('SkillHub · Joel · 2.3.1',{exact:true}).waitFor();
+ await page.locator('.install-box input').evaluate(e=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'https://github.com/example/skill');e.dispatchEvent(new Event('input',{bubbles:true}));}); await page.locator('.install-box button').evaluate(e=>e.click());
   await page.locator('.glass-modal').waitFor(); await page.waitForTimeout(450);
   assert.equal(await page.locator('.full-agent-grid > label:visible').count(),2);
   const other=page.locator('.full-agent-grid').getByRole('button',{name:'其他',exact:true}); await other.waitFor();
